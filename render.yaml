@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: alfa-invest-telegram-bot
+    runtime: docker
+    plan: free
+    autoDeploy: true
+    region: frankfurt
+    envVars:
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+    # Render will build from Dockerfile and run CMD
+
