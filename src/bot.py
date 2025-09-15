@@ -53,8 +53,16 @@ def get_bot_app() -> Application:
             styled = await rewrite_text_in_style(chat_id=str(update.effective_chat.id), input_text=text)
             await update.message.reply_text(styled)
 
+        async def on_channel_text(update, context: ContextTypes.DEFAULT_TYPE):
+            if not update.channel_post:
+                return
+            text = (update.channel_post.text or "").strip()
+            styled = await rewrite_text_in_style(chat_id=str(update.effective_chat.id), input_text=text)
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=styled)
+
         _bot_app.add_handler(CommandHandler("start", cmd_start))
         _bot_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, on_text))
+        _bot_app.add_handler(MessageHandler(filters.ChatType.CHANNEL & filters.TEXT, on_channel_text))
     return _bot_app
 
 
@@ -105,6 +113,10 @@ async def rewrite_text_in_style(chat_id: str, input_text: str) -> str:
 async def telegram_webhook(request: Request) -> dict:
     bot_app = get_bot_app()
     data = await request.json()
+    try:
+        logger.info("/webhook received update: %s", data.get("update_id"))
+    except Exception:
+        logger.info("/webhook received payload")
     update = Update.de_json(data, bot_app.bot)
     await bot_app.process_update(update)
     return {"ok": True}
