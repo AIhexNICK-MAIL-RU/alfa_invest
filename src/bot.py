@@ -34,11 +34,14 @@ def get_bot_app() -> Application:
         _bot_app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
 
         async def cmd_start(update, context: ContextTypes.DEFAULT_TYPE):
-            await update.message.reply_text(
-                "Привет! Пришли текст — верну стилизованную версию с хэштегом."
-            )
+            if update.message:
+                await update.message.reply_text(
+                    "Привет! Пришли текст — верну стилизованную версию с хэштегом."
+                )
 
         async def on_text(update, context: ContextTypes.DEFAULT_TYPE):
+            if not update.message:
+                return
             text = (update.message.text or "").strip()
             # TODO: вставить стилизацию текста и хэштеги
             await update.message.reply_text(f"{text}\n\n#альфаиндекс")
@@ -69,8 +72,22 @@ async def on_startup() -> None:
         return
     webhook_url = external_url.rstrip("/") + "/webhook"
     bot_app = get_bot_app()
+    # Properly initialize/start PTB Application for webhook processing
+    await bot_app.initialize()
+    await bot_app.start()
     await bot_app.bot.set_webhook(url=webhook_url)
     logger.info(f"Webhook set to: {webhook_url}")
+
+
+@app.on_event("shutdown")
+async def on_shutdown() -> None:
+    if _bot_app is None:
+        return
+    try:
+        await _bot_app.bot.delete_webhook()
+    finally:
+        await _bot_app.stop()
+        await _bot_app.shutdown()
 
 
 if __name__ == "__main__":
