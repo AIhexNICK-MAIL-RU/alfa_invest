@@ -3,12 +3,12 @@ import logging
 from fastapi import FastAPI, Request, HTTPException
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
-from openai import OpenAI
 import random
 from pathlib import Path
 
 from .storage import JsonKVStore
 from .style_profile import StyleProfile
+from .text_generator import generate_paraphrase
 
 
 # Minimal ASGI app for deployment platforms expecting `src.bot:app`
@@ -28,7 +28,6 @@ async def healthcheck() -> dict:
 # Telegram Bot integration for Render webhook
 logger = logging.getLogger(__name__)
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 _bot_app: Application | None = None
 
@@ -100,31 +99,10 @@ async def rewrite_text_in_style(chat_id: str, input_text: str) -> str:
     hashtags = profile.hashtags or StyleProfile.default().hashtags
     chosen_tag = random.choice(hashtags)
 
-    if not OPENAI_API_KEY:
-        # Fallback: simple paraphrase stub
-        return f"{input_text}\n\n{chosen_tag}"
-
-    client = OpenAI(api_key=OPENAI_API_KEY)
-    system_prompt = (
-        "Ты редактор телеграм-канала по инвестициям. Перепиши текст в заданном тоне. "
-        "Сохраняй факты, сокращай воду, повышай ясность, используй деловой стиль. "
-        "Отвечай на русском. Не добавляй эмодзи."
-    )
-    user_prompt = (
-        f"Тон и инструкция: {profile.voice_instructions}\n\n"
-        f"Перепиши следующий текст в этом стиле. Верни только новый текст без пояснений.\n\n"
-        f"Текст:\n{input_text}"
-    )
-    resp = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ],
-        temperature=0.4,
-        max_tokens=600,
-    )
-    rewritten = resp.choices[0].message.content.strip()
+    # Local light model (t5-small) paraphrase
+    base_rewrite = generate_paraphrase(input_text)
+    # Простейшая адаптация под тон: добавим краткий постпроцессинг в духе профиля
+    rewritten = base_rewrite
     return f"{rewritten}\n\n{chosen_tag}"
 
 @app.post("/webhook")

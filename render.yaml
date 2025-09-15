@@ -8,7 +8,7 @@ services:
     envVars:
       - key: TELEGRAM_BOT_TOKEN
         sync: false
-      - key: OPENAI_API_KEY
-        sync: false
+      - key: TRANSFORMERS_CACHE
+        value: /opt/render/.cache/huggingface/
     # Render will build from Dockerfile and run CMD
 
