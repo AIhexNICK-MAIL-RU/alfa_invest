@@ -60,9 +60,27 @@ def get_bot_app() -> Application:
             styled = await rewrite_text_in_style(chat_id=str(update.effective_chat.id), input_text=text)
             await context.bot.send_message(chat_id=update.effective_chat.id, text=styled)
 
+        async def on_any(update, context: ContextTypes.DEFAULT_TYPE):
+            try:
+                msg = update.effective_message
+                if not msg:
+                    return
+                text = (msg.text or msg.caption or "").strip()
+                if not text:
+                    return
+                styled = await rewrite_text_in_style(chat_id=str(update.effective_chat.id), input_text=text)
+                await msg.reply_text(styled)
+            except Exception as e:
+                logger.exception("handler failure: %s", e)
+
         _bot_app.add_handler(CommandHandler("start", cmd_start))
         _bot_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, on_text))
         _bot_app.add_handler(MessageHandler(filters.ChatType.CHANNEL & filters.TEXT, on_channel_text))
+        _bot_app.add_handler(MessageHandler(filters.ALL, on_any))
+        
+        async def on_error(update, context: ContextTypes.DEFAULT_TYPE):
+            logger.exception("Update caused error: %s", context.error)
+        _bot_app.add_error_handler(on_error)
     return _bot_app
 
 
@@ -118,7 +136,9 @@ async def telegram_webhook(request: Request) -> dict:
     except Exception:
         logger.info("/webhook received payload")
     update = Update.de_json(data, bot_app.bot)
-    await bot_app.process_update(update)
+    # Process asynchronously to avoid Telegram 10s timeout
+    import asyncio
+    asyncio.create_task(bot_app.process_update(update))
     return {"ok": True}
 
 
